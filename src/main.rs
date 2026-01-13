@@ -5,6 +5,8 @@
 use defmt::unwrap;
 use panic_rtt_target as _;
 
+esp_bootloader_esp_idf::esp_app_desc!();
+
 use embassy_executor::Spawner;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use esp_hal::{analog::adc, clock::CpuClock, gpio, i2c, timer::systimer::SystemTimer};
@@ -13,7 +15,7 @@ use static_cell::StaticCell;
 mod control;
 mod uart;
 
-pub type AsicUart = esp_hal::peripherals::UART1;
+pub type AsicUart = esp_hal::peripherals::UART1<'static>;
 pub type I2cDriver = i2c::master::I2c<'static, esp_hal::Async>;
 pub type UsbDriver = esp_hal::otg_fs::asynch::Driver<'static>;
 pub type UsbDevice = embassy_usb::UsbDevice<'static, UsbDriver>;

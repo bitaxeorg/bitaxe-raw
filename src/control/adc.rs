@@ -4,8 +4,8 @@ use heapless::Vec;
 use super::CommandError;
 
 pub struct Pins<'d> {
-    pub adc: Adc<'d, esp_hal::peripherals::ADC1, esp_hal::Blocking>,
-    pub vdd: AdcPin<esp_hal::gpio::GpioPin<2>, esp_hal::peripherals::ADC1>,
+    pub adc: Adc<'d, esp_hal::peripherals::ADC1<'d>, esp_hal::Blocking>,
+    pub vdd: AdcPin<esp_hal::peripherals::GPIO2<'d>, esp_hal::peripherals::ADC1<'d>>,
 }
 
 #[derive(defmt::Format)]

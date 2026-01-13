@@ -10,3 +10,4 @@ build-std = ["core", "alloc"]
 
 [env]
 DEFMT_LOG = "debug"
+ESP_HAL_MIN_CHIP_REV = "0.0"

@@ -25,8 +25,7 @@ instead install the binary from https://github.com/esp-rs/espup/releases make su
 `./espup install`
 
 ### Install flashing tools
-`cargo install probe-rs-tools --locked`
-`cargo install cargo-binutils`
+`cargo install cargo-espflash espflash --locked`
 
 For building and flashing over USB:
 
@@ -36,7 +35,10 @@ For building and flashing over USB:
 `cargo build --release`
 
 ### Flash the device:
-`cargo flash --release --chip esp32s3`
+`espflash flash --chip esp32s3 target/xtensa-esp32s3-none-elf/release/bitaxe-raw`
+
+Or use cargo-espflash:
+`cargo espflash flash --release --chip esp32s3`
 
 After programming bitaxe-raw to your Bitaxe, if you ever want to change the firmware again you'll need to put the ESP32 into the bootloader. This can be done by holding the `BOOT` button as you attach power.
 
