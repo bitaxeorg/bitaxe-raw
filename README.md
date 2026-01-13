@@ -41,6 +41,8 @@ cargo build --release
 cargo espflash flash --release --chip esp32s3
 ```
 
+espflash isn't restarting the ESP32 after flashing. Press the Bitaxe `RESET` button to boot the newly flashed firmware.
+
 After programming bitaxe-raw to your Bitaxe, if you ever want to change the firmware again you'll need to put the ESP32 into the bootloader. This can be done by holding the `BOOT` button as you attach power.
 
 ## Running
