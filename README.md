@@ -6,37 +6,42 @@ bitaxe-raw is firmware for the ESP32S3 on the bitaxe series boards. It will pass
 
 Install Rust:
 
-`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
 ### Install espup
 
-`RUSTUP_TOOLCHAIN=stable cargo install espup --locked`
+```bash
+RUSTUP_TOOLCHAIN=stable cargo install espup --locked
+```
 
-`espup install`
-
-Note: `espup install` doesn't seem to be working right now. If it gives you an error, try:
-
-instead install the binary from https://github.com/esp-rs/espup/releases make sure to get the right binary link for your system and replace the URL and run
-
-`curl -L https://github.com/esp-rs/espup/releases/download/v0.15.1/espup-x86_64-apple-darwin -o espup`
-
-`chmod a+x espup`
-
-`./espup install`
+```bash
+espup install
+```
 
 ### Install flashing tools
-`cargo install probe-rs-tools --locked`
-`cargo install cargo-binutils`
+```bash
+cargo install cargo-espflash espflash --locked
+```
 
 For building and flashing over USB:
 
-`. $HOME/export-esp.sh`
+```bash
+. $HOME/export-esp.sh
+```
 
 ### Build the latest firmware:
-`cargo build --release`
+```bash
+cargo build --release
+```
 
 ### Flash the device:
-`cargo flash --release --chip esp32s3`
+```bash
+cargo espflash flash --release --chip esp32s3
+```
+
+espflash isn't restarting the ESP32 after flashing. Press the Bitaxe `RESET` button to boot the newly flashed firmware.
 
 After programming bitaxe-raw to your Bitaxe, if you ever want to change the firmware again you'll need to put the ESP32 into the bootloader. This can be done by holding the `BOOT` button as you attach power.
 
