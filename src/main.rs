@@ -9,13 +9,14 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use embassy_executor::Spawner;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use esp_hal::{analog::adc, clock::CpuClock, gpio, i2c, timer::systimer::SystemTimer};
+use esp_hal::{analog::adc, clock::CpuClock, i2c, timer::systimer::SystemTimer};
 use static_cell::StaticCell;
 
 mod control;
 mod uart;
 
 pub type AsicUart = esp_hal::peripherals::UART1<'static>;
+pub type BridgeControlUart = esp_hal::uart::Uart<'static, esp_hal::Async>;
 pub type I2cDriver = i2c::master::I2c<'static, esp_hal::Async>;
 pub type UsbDriver = esp_hal::otg_fs::asynch::Driver<'static>;
 pub type UsbDevice = embassy_usb::UsbDevice<'static, UsbDriver>;
@@ -93,15 +94,16 @@ async fn main(spawner: Spawner) {
         esp_hal::uart::Uart::new(p.UART1, config).unwrap().with_rx(p.GPIO18).with_tx(p.GPIO17).into_async()
     };
 
+    let bridge_control_uart = {
+        let config = esp_hal::uart::Config::default().with_baudrate(115200).with_rx(esp_hal::uart::RxConfig::default().with_fifo_full_threshold(64));
+        esp_hal::uart::Uart::new(p.UART0, config).unwrap().with_rx(p.GPIO44).with_tx(p.GPIO43).into_async()
+    };
+
     let i2c = {
         let config = esp_hal::i2c::master::Config::default();
         let sda = p.GPIO47;
         let scl = p.GPIO48;
         i2c::master::I2c::new(p.I2C0, config).unwrap().with_sda(sda).with_scl(scl).into_async()
-    };
-
-    let gpio_pins = control::gpio::Pins {
-        asic_resetn: gpio::Output::new(p.GPIO1, gpio::Level::Low, gpio::OutputConfig::default()),
     };
 
     let mut adc_config = adc::AdcConfig::default();
@@ -110,7 +112,7 @@ async fn main(spawner: Spawner) {
     let adc_pins = control::adc::Pins { adc, vdd: vdd };
 
     unwrap!(spawner.spawn(usb_task(builder.build())));
-    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, gpio_pins, adc_pins)));
+    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, bridge_control_uart, adc_pins)));
     unwrap!(spawner.spawn(uart::usb_task(asic_uart_class, asic_uart)));
 }
 

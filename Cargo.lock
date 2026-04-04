@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitaxe-raw"
+name = "bitaxe-raw-bonanza"
 version = "0.0.1"
 dependencies = [
  "const-murmur3",

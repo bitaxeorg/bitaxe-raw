@@ -1,12 +1,12 @@
 [package]
-name = "bitaxe-raw"
+name = "bitaxe-raw-bonanza"
 version = "0.0.1"
 edition = "2021"
 license = "MIT"
 
 [package.metadata.esp-bootloader-esp-idf]
 version = 1
-project_name = "bitaxe-raw"
+project_name = "bitaxe-raw-bonanza"
 compile_time = "2025-01-12T00:00:00Z"
 compile_date = "Jan 12 2025"
 compile_time_short = "00:00:00"
