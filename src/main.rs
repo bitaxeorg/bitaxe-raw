@@ -24,7 +24,7 @@ pub type UsbDevice = embassy_usb::UsbDevice<'static, UsbDriver>;
 const VERSION: u16 = 0x0001;
 
 static MANUFACTURER: &str = "OSMU";
-static PRODUCT: &str = "Bitaxe";
+static PRODUCT: &str = "BitaxeBonanza";
 
 /// Return a unique serial number for this device by hashing its MAC address
 fn serial_number() -> &'static str {
