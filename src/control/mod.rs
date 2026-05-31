@@ -111,6 +111,7 @@ pub struct Controller {
     tx: Sender<'static, super::UsbDriver>,
     i2c: super::I2cDriver,
     adc: adc::Pins<'static>,
+    gpio: gpio::Pins<'static>,
     bridge: bridge::BridgeControl,
 }
 
@@ -151,17 +152,13 @@ impl Controller {
 }
 
 #[embassy_executor::task]
-pub async fn usb_task(
-    class: CdcAcmClass<'static, super::UsbDriver>,
-    i2c: super::I2cDriver,
-    bridge_uart: crate::BridgeControlUart,
-    adc: adc::Pins<'static>,
-) -> ! {
+pub async fn usb_task(class: CdcAcmClass<'static, super::UsbDriver>, i2c: super::I2cDriver, bridge_uart: crate::BridgeControlUart, adc: adc::Pins<'static>, gpio: gpio::Pins<'static>) -> ! {
     let (tx, mut rx, mut _ctrl) = class.split_with_control();
     let mut controller = Controller {
         tx,
         i2c,
         adc,
+        gpio,
         bridge: bridge::BridgeControl::new(bridge_uart),
     };
 

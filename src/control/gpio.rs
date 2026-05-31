@@ -1,5 +1,11 @@
 use super::CommandError;
+use esp_hal::gpio::{Input, Level, Output};
 use heapless::Vec;
+
+pub struct Pins<'d> {
+    pub vr_en: Output<'d>,
+    pub vr_pgood: Input<'d>,
+}
 
 #[derive(defmt::Format)]
 pub enum Command {
@@ -10,6 +16,9 @@ pub enum Command {
     SetAsicRst { level: bool },
     GetAsicRst,
     GetAsicTrip,
+    SetVrEn { level: bool },
+    GetVrEn,
+    GetVrPgood,
 }
 
 impl Command {
@@ -24,6 +33,9 @@ impl Command {
             [0x02] => Ok(Self::GetAsicRst),
             [0x02, level] => Ok(Self::SetAsicRst { level: *level > 0 }),
             [0x03] => Ok(Self::GetAsicTrip),
+            [0x04] => Ok(Self::GetVrEn),
+            [0x04, level] => Ok(Self::SetVrEn { level: *level > 0 }),
+            [0x05] => Ok(Self::GetVrPgood),
             _ => Err(CommandError::Invalid),
         }
     }
@@ -40,6 +52,12 @@ impl super::ControllerCommand for Command {
             Command::GetAsicRst => controller.bridge.transact(0, 0, 0x06, 0x02, &[]).await,
             Command::SetAsicRst { level } => controller.bridge.transact(0, 0, 0x06, 0x02, &[*level as u8]).await,
             Command::GetAsicTrip => controller.bridge.transact(0, 0, 0x06, 0x03, &[]).await,
+            Command::GetVrEn => Ok(Vec::from_slice(&[controller.gpio.vr_en.is_set_high() as u8]).unwrap()),
+            Command::SetVrEn { level } => {
+                controller.gpio.vr_en.set_level(Level::from(*level));
+                Ok(Vec::from_slice(&[*level as u8]).unwrap())
+            }
+            Command::GetVrPgood => Ok(Vec::from_slice(&[controller.gpio.vr_pgood.is_high() as u8]).unwrap()),
         }
     }
 }
