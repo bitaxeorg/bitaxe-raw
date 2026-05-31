@@ -71,6 +71,14 @@ pub async fn pipe_uart<'d>(
     let mut usb_buf = [0; 64];
     let mut uart_buf = [0; 1024];
 
+    let line_coding = usb_rx.line_coding();
+    let baudrate = line_coding.data_rate();
+    if baudrate != 0 {
+        let config = Config::default().with_baudrate(baudrate);
+        uart_tx.set_config(&config)?;
+        uart_rx.set_config(&config)?;
+    }
+
     loop {
         let usb_read = usb_rx.read_packet(&mut usb_buf);
         let uart_read = uart_rx.read_async(&mut uart_buf);
