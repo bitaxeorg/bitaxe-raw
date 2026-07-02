@@ -107,6 +107,8 @@ Example:
 Commands:
 
 - RST_N: 0x00
+- VDDIO_5V_EN: 0x01
+- TPS546_EN: 0x02
 
 Data:
 
@@ -126,4 +128,3 @@ Commands:
 Example:
 
 - read VDD Pin: `06 00 00 00 07 50`
-

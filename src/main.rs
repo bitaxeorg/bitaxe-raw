@@ -102,6 +102,8 @@ async fn main(spawner: Spawner) {
 
     let gpio_pins = control::gpio::Pins {
         asic_resetn: gpio::Output::new(p.GPIO1, gpio::Level::Low, gpio::OutputConfig::default()),
+        vddio_5v_en: gpio::Output::new(p.GPIO21, gpio::Level::Low, gpio::OutputConfig::default()),
+        tps546_en: gpio::Output::new(p.GPIO10, gpio::Level::Low, gpio::OutputConfig::default()),
     };
 
     let mut adc_config = adc::AdcConfig::default();
