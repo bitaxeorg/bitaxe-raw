@@ -17,8 +17,15 @@ RUSTUP_TOOLCHAIN=stable cargo install espup --locked
 ```
 
 ```bash
-espup install
+espup install --toolchain-version 1.93.0.0
 ```
+
+Pin the toolchain to 1.93.0.0. Newer esp toolchains (1.94.x, 1.95.x)
+ship LLVM 21, whose Xtensa backend miscompiles optimized builds and
+aborts with `rustc-LLVM ERROR: Cannot select ... XtensaISD::PCREL_WRAPPER`.
+1.93.0.0 (LLVM 20) is the last known-good version. `build.rs` refuses to
+build on the affected toolchains, so an accidental `espup update` fails
+fast with the same instructions instead of a cryptic backend crash.
 
 ### Install flashing tools
 ```bash

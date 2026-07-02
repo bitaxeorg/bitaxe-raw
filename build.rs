@@ -1,8 +1,46 @@
 fn main() {
     linker_be_nice();
+    check_llvm_version();
     println!("cargo:rustc-link-arg=-Tdefmt.x");
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
+}
+
+// esp toolchains built on LLVM 21 (Xtensa Rust 1.94.x / 1.95.x) fail to
+// compile release builds for the Xtensa target: the backend can't select
+// XtensaISD::PCREL_WRAPPER for a constant-pool string reference and aborts
+// with `rustc-LLVM ERROR: Cannot select`. LLVM 20 (Xtensa Rust 1.93.0.0) is
+// the last good version. Turn that cryptic crash into an actionable message.
+// Revisit the version bound once esp-rs ships a fixed LLVM 21.
+fn check_llvm_version() {
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let output = match std::process::Command::new(&rustc)
+        .args(["--version", "--verbose"])
+        .output()
+    {
+        Ok(output) => output,
+        // Can't probe rustc; don't block the build over it.
+        Err(_) => return,
+    };
+
+    let major = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("LLVM version:"))
+        .and_then(|version| version.trim().split('.').next())
+        .and_then(|major| major.parse::<u32>().ok());
+
+    if let Some(major) = major {
+        if major >= 21 {
+            eprintln!();
+            eprintln!("This esp toolchain bundles LLVM {major}, which miscompiles optimized");
+            eprintln!("Xtensa builds (XtensaISD::PCREL_WRAPPER cannot be selected). Install the");
+            eprintln!("last known-good toolchain:");
+            eprintln!();
+            eprintln!("    espup install --toolchain-version 1.93.0.0");
+            eprintln!();
+            std::process::exit(1);
+        }
+    }
 }
 
 fn linker_be_nice() {
