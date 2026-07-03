@@ -78,6 +78,7 @@ After startup, the ASIC is held in reset by GPIO RST_N in order to minimize heat
 	- I2C:  0x05
 	- GPIO: 0x06
 	- ADC:  0x07
+	- FAN:  0x08
 5. command 
 	- varies by command page. See below
 6. data
@@ -128,3 +129,22 @@ Commands:
 Example:
 
 - read VDD Pin: `06 00 00 00 07 50`
+
+**FAN**
+
+FAN_PWM is ESP32 GPIO8. FAN_TACH is ESP32 GPIO9.
+
+Commands:
+
+- set duty: 0x00
+- read RPM: 0x01
+
+Data:
+
+- set duty: [duty cycle, 0-255]
+- read RPM: returns RPM as a little-endian u32
+
+Example:
+
+- set fan to 50% duty: `07 00 00 00 08 00 80`
+- read fan RPM: `06 00 00 00 08 01`

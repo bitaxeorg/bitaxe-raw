@@ -9,7 +9,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use embassy_executor::Spawner;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use esp_hal::{analog::adc, clock::CpuClock, gpio, i2c, timer::systimer::SystemTimer};
+use esp_hal::{analog::adc, clock::CpuClock, gpio, i2c, ledc, time::Rate, timer::systimer::SystemTimer};
 use static_cell::StaticCell;
 
 mod control;
@@ -111,8 +111,43 @@ async fn main(spawner: Spawner) {
     let adc = adc::Adc::new(p.ADC1, Default::default());
     let adc_pins = control::adc::Pins { adc, vdd: vdd };
 
+    let fan_pins = {
+        use ledc::{
+            channel::{self, ChannelIFace},
+            timer::{self, TimerIFace},
+            LowSpeed,
+        };
+
+        static FAN_PWM_TIMER: StaticCell<ledc::timer::Timer<'static, LowSpeed>> = StaticCell::new();
+
+        let mut ledc = ledc::Ledc::new(p.LEDC);
+        ledc.set_global_slow_clock(ledc::LSGlobalClkSource::APBClk);
+
+        let mut timer0 = ledc.timer::<LowSpeed>(timer::Number::Timer0);
+        timer0
+            .configure(timer::config::Config {
+                duty: timer::config::Duty::Duty8Bit,
+                clock_source: timer::LSClockSource::APBClk,
+                frequency: Rate::from_khz(25),
+            })
+            .unwrap();
+        let timer0 = FAN_PWM_TIMER.init(timer0);
+
+        let mut pwm = ledc.channel(channel::Number::Channel0, p.GPIO8);
+        pwm.configure(channel::config::Config {
+            timer: timer0,
+            duty_pct: 0,
+            pin_config: channel::config::PinConfig::PushPull,
+        })
+        .unwrap();
+
+        let tach = gpio::Input::new(p.GPIO9, gpio::InputConfig::default().with_pull(gpio::Pull::Up));
+
+        control::fan::Pins { pwm, tach, duty: 0 }
+    };
+
     unwrap!(spawner.spawn(usb_task(builder.build())));
-    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, gpio_pins, adc_pins)));
+    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, gpio_pins, adc_pins, fan_pins)));
     unwrap!(spawner.spawn(uart::usb_task(asic_uart_class, asic_uart)));
 }
 
