@@ -100,6 +100,13 @@ async fn main(spawner: Spawner) {
         i2c::master::I2c::new(p.I2C0, config).unwrap().with_sda(sda).with_scl(scl).into_async()
     };
 
+    let disp = {
+        let config = esp_hal::i2c::master::Config::default();
+        let sda = p.GPIO7;
+        let scl = p.GPIO6;
+        i2c::master::I2c::new(p.I2C1, config).unwrap().with_sda(sda).with_scl(scl).into_async()
+    };
+
     let gpio_pins = control::gpio::Pins {
         asic_resetn: gpio::Output::new(p.GPIO1, gpio::Level::Low, gpio::OutputConfig::default()),
         vddio_5v_en: gpio::Output::new(p.GPIO21, gpio::Level::Low, gpio::OutputConfig::default()),
@@ -147,7 +154,7 @@ async fn main(spawner: Spawner) {
     };
 
     unwrap!(spawner.spawn(usb_task(builder.build())));
-    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, gpio_pins, adc_pins, fan_pins)));
+    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, disp, gpio_pins, adc_pins, fan_pins)));
     unwrap!(spawner.spawn(uart::usb_task(asic_uart_class, asic_uart)));
 }
 

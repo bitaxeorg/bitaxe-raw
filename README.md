@@ -79,6 +79,7 @@ After startup, the ASIC is held in reset by GPIO RST_N in order to minimize heat
 	- GPIO: 0x06
 	- ADC:  0x07
 	- FAN:  0x08
+	- DISP: 0x09
 5. command 
 	- varies by command page. See below
 6. data
@@ -102,6 +103,16 @@ Example:
 - write 0xDE to addr 0x4F: `08 00 01 00 05 20 4F DE`
 - read one byte from addr 0x4C: `08 00 01 00 05 30 4C 01`
 - readwrite two bytes from addr 0x32, reg 0xFE: `09 00 01 00 05 40 32 FE 02`
+
+**DISP**
+
+DISP is a dedicated I2C bus for a connected display. SDA is ESP32 GPIO7 and SCL is ESP32 GPIO6.
+
+It supports the same commands and data format as the I2C page, using command page `0x09`.
+
+Example:
+
+- write `0xAE` to display addr `0x3C`: `08 00 01 00 09 20 3C AE`
 
 **GPIO**
 
