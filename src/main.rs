@@ -32,6 +32,7 @@ const VERSION: u16 = 0x0001;
 
 static MANUFACTURER: &str = "OSMU";
 static PRODUCT: &str = "BitaxeBonanza";
+const BRIDGE_DATA_BAUDRATE: u32 = 2_000_000;
 
 /// Return a unique serial number for this device by hashing its MAC address
 fn serial_number() -> &'static str {
@@ -97,7 +98,7 @@ async fn main(spawner: Spawner) {
     };
 
     let asic_uart = {
-        let config = esp_hal::uart::Config::default().with_baudrate(5_000_000).with_rx(esp_hal::uart::RxConfig::default().with_fifo_full_threshold(64));
+        let config = esp_hal::uart::Config::default().with_baudrate(BRIDGE_DATA_BAUDRATE).with_rx(esp_hal::uart::RxConfig::default().with_fifo_full_threshold(64));
         esp_hal::uart::Uart::new(p.UART1, config).unwrap().with_rx(p.GPIO18).with_tx(p.GPIO17).into_async()
     };
 

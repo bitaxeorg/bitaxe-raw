@@ -20,6 +20,7 @@ static REPLY_CHANNEL: Channel<CriticalSectionRawMutex, ReplyEnvelope, REQUEST_QU
 
 #[derive(defmt::Format)]
 enum Request {
+    System { command: u8 },
     Gpio { command: u8, level: Option<bool> },
     Fan { command: u8, speed: Option<u8> },
     Shutdown,
@@ -53,6 +54,10 @@ async fn request(request: Request) -> Result<Vec<u8, 256>, CommandError> {
 
 pub async fn gpio(command: u8, level: Option<bool>) -> Result<Vec<u8, 256>, CommandError> {
     request(Request::Gpio { command, level }).await
+}
+
+pub async fn system(command: u8) -> Result<Vec<u8, 256>, CommandError> {
+    request(Request::System { command }).await
 }
 
 pub async fn fan(command: u8, speed: Option<u8>) -> Result<Vec<u8, 256>, CommandError> {
@@ -158,6 +163,7 @@ impl BridgeManager {
 
     async fn handle(&mut self, request: Request) -> Result<Vec<u8, 256>, CommandError> {
         match request {
+            Request::System { command } => self.handle_system(command).await,
             Request::Gpio { command, level } => self.handle_gpio(command, level).await,
             Request::Fan { command, speed } => self.handle_fan(command, speed).await,
             Request::Shutdown => {
@@ -165,6 +171,14 @@ impl BridgeManager {
                 Ok(Vec::new())
             }
         }
+    }
+
+    async fn handle_system(&mut self, command: u8) -> Result<Vec<u8, 256>, CommandError> {
+        let result = self.control.transact(bridge_protocol::PAGE_SYSTEM, command, &[]).await;
+        if self.lease_active && result.is_err() {
+            self.fail_safe().await;
+        }
+        result
     }
 
     async fn handle_gpio(&mut self, command: u8, level: Option<bool>) -> Result<Vec<u8, 256>, CommandError> {
