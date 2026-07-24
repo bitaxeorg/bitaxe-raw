@@ -46,13 +46,13 @@ impl super::ControllerCommand for Command {
     async fn handle(&self, controller: &mut super::Controller) -> Result<Vec<u8, 256>, CommandError> {
         match self {
             // Preserve the original bitaxe-raw-bonanza RST_N command ID and semantics.
-            Command::GetAsicResetn => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[]).await,
-            Command::SetAsicResetn { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[*level as u8]).await,
-            Command::Get5vEn => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_5V_ENABLE, &[]).await,
-            Command::Set5vEn { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_5V_ENABLE, &[*level as u8]).await,
-            Command::GetAsicRst => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[]).await,
-            Command::SetAsicRst { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[*level as u8]).await,
-            Command::GetAsicTrip => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_TRIP, &[]).await,
+            Command::GetAsicResetn => super::bridge::gpio(bridge_protocol::GPIO_ASIC_RESET, None).await,
+            Command::SetAsicResetn { level } => super::bridge::gpio(bridge_protocol::GPIO_ASIC_RESET, Some(*level)).await,
+            Command::Get5vEn => super::bridge::gpio(bridge_protocol::GPIO_5V_ENABLE, None).await,
+            Command::Set5vEn { level } => super::bridge::gpio(bridge_protocol::GPIO_5V_ENABLE, Some(*level)).await,
+            Command::GetAsicRst => super::bridge::gpio(bridge_protocol::GPIO_ASIC_RESET, None).await,
+            Command::SetAsicRst { level } => super::bridge::gpio(bridge_protocol::GPIO_ASIC_RESET, Some(*level)).await,
+            Command::GetAsicTrip => super::bridge::gpio(bridge_protocol::GPIO_ASIC_TRIP, None).await,
             Command::GetVrEn => Ok(Vec::from_slice(&[controller.gpio.vr_en.is_set_high() as u8]).unwrap()),
             Command::SetVrEn { level } => {
                 controller.gpio.vr_en.set_level(Level::from(*level));

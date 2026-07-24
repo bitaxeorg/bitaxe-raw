@@ -124,7 +124,8 @@ async fn main(spawner: Spawner) {
     };
 
     unwrap!(spawner.spawn(usb_task(builder.build())));
-    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, bridge_control_uart, adc_pins, gpio_pins)));
+    unwrap!(spawner.spawn(control::bridge::manager_task(bridge_control_uart)));
+    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, adc_pins, gpio_pins)));
     unwrap!(spawner.spawn(uart::usb_task(asic_uart_class, asic_uart)));
 }
 

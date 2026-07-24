@@ -20,10 +20,10 @@ impl Command {
 }
 
 impl super::ControllerCommand for Command {
-    async fn handle(&self, controller: &mut super::Controller) -> Result<Vec<u8, 256>, CommandError> {
+    async fn handle(&self, _controller: &mut super::Controller) -> Result<Vec<u8, 256>, CommandError> {
         match self {
-            Command::SetSpeed(speed) => controller.bridge.transact(bridge_protocol::PAGE_FAN, bridge_protocol::FAN_SET_SPEED, &[*speed]).await,
-            Command::GetTach => controller.bridge.transact(bridge_protocol::PAGE_FAN, bridge_protocol::FAN_GET_TACH, &[]).await,
+            Command::SetSpeed(speed) => super::bridge::fan(bridge_protocol::FAN_SET_SPEED, Some(*speed)).await,
+            Command::GetTach => super::bridge::fan(bridge_protocol::FAN_GET_TACH, None).await,
         }
     }
 }

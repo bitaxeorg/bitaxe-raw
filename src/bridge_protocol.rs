@@ -4,6 +4,7 @@ pub const VERSION_MAX_LENGTH: usize = 63;
 
 pub const SAFETY_STATUS_SCHEMA_VERSION: u8 = 1;
 pub const SAFETY_STATUS_LENGTH: usize = 17;
+pub const SAFETY_STAGE_TRIP_LATCH: u8 = 2;
 
 pub const PAGE_SYSTEM: u8 = 0x00;
 pub const SYSTEM_GET_INFO: u8 = 0x01;
@@ -85,6 +86,13 @@ pub struct SafetyStatus {
     pub trip_input_asserted: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LeasePreparation {
+    Adopt,
+    Arm,
+    ClearThenArm,
+}
+
 impl SafetyStatus {
     pub const fn outputs_safe(self) -> bool {
         !self.five_volt_enabled && self.asic_reset_asserted && self.fan_percent == 100
@@ -100,6 +108,22 @@ impl SafetyStatus {
 
     pub fn lease_valid(self) -> bool {
         self.state == SafetyState::Controlled && self.lease_remaining_ms > 0 && (self.evidence & EVIDENCE_LEASE_VALID) != 0
+    }
+
+    pub fn lease_preparation(self) -> Result<LeasePreparation, ProtocolError> {
+        if self.stage != SAFETY_STAGE_TRIP_LATCH {
+            return Err(ProtocolError::Denied);
+        }
+        if !self.trip_clear() {
+            return Err(ProtocolError::Fault);
+        }
+
+        match self.state {
+            SafetyState::Controlled if self.lease_valid() && self.fault_clear() => Ok(LeasePreparation::Adopt),
+            SafetyState::SafeOff if self.outputs_safe() && self.fault_clear() => Ok(LeasePreparation::Arm),
+            SafetyState::FaultLatched if self.outputs_safe() => Ok(LeasePreparation::ClearThenArm),
+            _ => Err(ProtocolError::Fault),
+        }
     }
 }
 
@@ -285,12 +309,11 @@ mod tests {
         let mut controlled = safe_status_payload();
         controlled[2] = 1;
         controlled[4] = 1;
-        controlled[8] = EVIDENCE_LEASE_VALID as u8 | EVIDENCE_TRIP_CLEAR as u8 | EVIDENCE_FAULT_CLEAR as u8;
+        controlled[8] = EVIDENCE_OUTPUTS_SAFE as u8 | EVIDENCE_LEASE_VALID as u8 | EVIDENCE_TRIP_CLEAR as u8 | EVIDENCE_FAULT_CLEAR as u8;
         controlled[10..14].copy_from_slice(&1_750u32.to_le_bytes());
-        controlled[14] = 0x04;
         let status = decode_safety_status(&controlled).unwrap();
         assert!(status.lease_valid());
-        assert!(!status.outputs_safe());
+        assert!(status.outputs_safe());
     }
 
     #[test]
@@ -302,5 +325,37 @@ mod tests {
         let mut payload = safe_status_payload();
         payload[2] = SafetyState::FaultLatched as u8;
         assert_eq!(decode_safety_status(&payload), Err(ProtocolError::InvalidResponse));
+    }
+
+    #[test]
+    fn lease_preparation_only_accepts_coherent_trip_latched_states() {
+        let safe = decode_safety_status(&safe_status_payload()).unwrap();
+        assert_eq!(safe.lease_preparation(), Ok(LeasePreparation::Arm));
+
+        let mut controlled = safe_status_payload();
+        controlled[2] = SafetyState::Controlled as u8;
+        controlled[4] = 1;
+        controlled[8] |= EVIDENCE_LEASE_VALID as u8;
+        controlled[10..14].copy_from_slice(&1_750u32.to_le_bytes());
+        let controlled = decode_safety_status(&controlled).unwrap();
+        assert_eq!(controlled.lease_preparation(), Ok(LeasePreparation::Adopt));
+
+        let mut faulted = safe_status_payload();
+        faulted[2] = SafetyState::FaultLatched as u8;
+        faulted[3] = SafetyFault::LeaseExpired as u8;
+        faulted[4] = 0x80;
+        faulted[5] = 0x82;
+        faulted[8] &= !EVIDENCE_FAULT_CLEAR as u8;
+        let faulted = decode_safety_status(&faulted).unwrap();
+        assert_eq!(faulted.lease_preparation(), Ok(LeasePreparation::ClearThenArm));
+
+        let mut active_trip = faulted;
+        active_trip.trip_input_asserted = true;
+        active_trip.evidence &= !EVIDENCE_TRIP_CLEAR;
+        assert_eq!(active_trip.lease_preparation(), Err(ProtocolError::Fault));
+
+        let mut weak_stage = safe;
+        weak_stage.stage = 1;
+        assert_eq!(weak_stage.lease_preparation(), Err(ProtocolError::Denied));
     }
 }
