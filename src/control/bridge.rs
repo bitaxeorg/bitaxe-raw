@@ -3,6 +3,7 @@ use embedded_io_async::Write;
 use heapless::Vec;
 
 use super::CommandError;
+use crate::bridge_protocol::{self, ProtocolError};
 
 const UART_TIMEOUT: Duration = Duration::from_millis(1000);
 const FRAME_BUF_LEN: usize = 512;
@@ -11,42 +12,71 @@ pub struct BridgeControl {
     uart: crate::BridgeControlUart,
     rx_buf: [u8; FRAME_BUF_LEN],
     rx_len: usize,
+    next_id: u8,
 }
 
 impl BridgeControl {
     pub fn new(uart: crate::BridgeControlUart) -> Self {
-        Self { uart, rx_buf: [0; FRAME_BUF_LEN], rx_len: 0 }
+        Self {
+            uart,
+            rx_buf: [0; FRAME_BUF_LEN],
+            rx_len: 0,
+            next_id: 0,
+        }
     }
 
-    pub async fn transact(&mut self, id: u8, bus: u8, page: u8, command: u8, data: &[u8]) -> Result<Vec<u8, 256>, CommandError> {
-        let mut request = Vec::<u8, 260>::new();
-        request.extend_from_slice(&[0, 0, id, bus, page, command]).map_err(|_| CommandError::BufferOverflow)?;
-        request.extend_from_slice(data).map_err(|_| CommandError::BufferOverflow)?;
+    pub async fn transact(&mut self, page: u8, command: u8, data: &[u8]) -> Result<Vec<u8, 256>, CommandError> {
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
 
-        let len = (request.len() as u16).to_le_bytes();
-        request[0..2].copy_from_slice(&len);
+        let mut request = [0u8; 260];
+        let request_len = bridge_protocol::encode_request(id, page, command, data, &mut request).map_err(CommandError::from_protocol)?;
 
-        self.uart.write_all(&request).await.map_err(|_| CommandError::Message("Bridge UART Write Error"))?;
+        self.uart.write_all(&request[..request_len]).await.map_err(|_| CommandError::Message("Bridge UART Write Error"))?;
         self.uart.flush_async().await.map_err(|_| CommandError::Message("Bridge UART Flush Error"))?;
 
-        let response = with_timeout(UART_TIMEOUT, self.read_frame()).await.map_err(|_| CommandError::Timeout)??;
-        if response.len() < 3 || response[2] != id {
-            return Err(CommandError::Message("Bridge UART Response Error"));
+        let result = with_timeout(UART_TIMEOUT, self.read_response(id)).await;
+        match result {
+            Ok(result) => result,
+            Err(_) => {
+                self.rx_len = 0;
+                Err(CommandError::Timeout)
+            }
         }
-
-        Vec::from_slice(&response[3..]).map_err(|_| CommandError::BufferOverflow)
     }
 
-    async fn read_frame(&mut self) -> Result<Vec<u8, 260>, CommandError> {
+    async fn read_response(&mut self, expected_id: u8) -> Result<Vec<u8, 256>, CommandError> {
         loop {
-            if let Some(frame_len) = try_extract_frame_len(&self.rx_buf[..self.rx_len])? {
-                let frame = Vec::from_slice(&self.rx_buf[..frame_len]).map_err(|_| CommandError::BufferOverflow)?;
+            let frame_length = match bridge_protocol::declared_frame_length(&self.rx_buf[..self.rx_len], FRAME_BUF_LEN) {
+                Ok(frame_length) => frame_length,
+                Err(error) => {
+                    self.rx_len = 0;
+                    return Err(CommandError::from_protocol(error));
+                }
+            };
+            if let Some(frame_len) = frame_length {
+                let response_id = self.rx_buf[2];
+                let decoded = if response_id == expected_id {
+                    bridge_protocol::decode_response(expected_id, &self.rx_buf[..frame_len]).map(Vec::from_slice)
+                } else {
+                    Err(ProtocolError::InvalidResponse)
+                };
+
                 let excess = self.rx_len - frame_len;
                 if excess > 0 {
                     self.rx_buf.copy_within(frame_len..self.rx_len, 0);
                 }
                 self.rx_len = excess;
-                return Ok(frame);
+
+                if response_id != expected_id {
+                    continue;
+                }
+                return decoded.map_err(CommandError::from_protocol)?.map_err(|_| CommandError::BufferOverflow);
+            }
+
+            if self.rx_len == FRAME_BUF_LEN {
+                self.rx_len = 0;
+                return Err(CommandError::Invalid);
             }
 
             let n = self.uart.read_async(&mut self.rx_buf[self.rx_len..]).await.map_err(|_| CommandError::Message("Bridge UART Read Error"))?;
@@ -56,21 +86,4 @@ impl BridgeControl {
             self.rx_len += n;
         }
     }
-}
-
-fn try_extract_frame_len(buf: &[u8]) -> Result<Option<usize>, CommandError> {
-    if buf.len() < 2 {
-        return Ok(None);
-    }
-
-    let frame_len = u16::from_le_bytes([buf[0], buf[1]]) as usize;
-    if !(3..=FRAME_BUF_LEN).contains(&frame_len) {
-        return Err(CommandError::Invalid);
-    }
-
-    if buf.len() < frame_len {
-        return Ok(None);
-    }
-
-    Ok(Some(frame_len))
 }

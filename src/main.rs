@@ -18,6 +18,7 @@ use esp_hal::{
 };
 use static_cell::StaticCell;
 
+mod bridge_protocol;
 mod control;
 mod uart;
 

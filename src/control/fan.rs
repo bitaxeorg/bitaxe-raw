@@ -1,6 +1,7 @@
 use heapless::Vec;
 
 use super::CommandError;
+use crate::bridge_protocol;
 
 #[derive(defmt::Format)]
 pub enum Command {
@@ -21,8 +22,8 @@ impl Command {
 impl super::ControllerCommand for Command {
     async fn handle(&self, controller: &mut super::Controller) -> Result<Vec<u8, 256>, CommandError> {
         match self {
-            Command::SetSpeed(speed) => controller.bridge.transact(0, 0, 0x09, 0x10, &[*speed]).await,
-            Command::GetTach => controller.bridge.transact(0, 0, 0x09, 0x20, &[]).await,
+            Command::SetSpeed(speed) => controller.bridge.transact(bridge_protocol::PAGE_FAN, bridge_protocol::FAN_SET_SPEED, &[*speed]).await,
+            Command::GetTach => controller.bridge.transact(bridge_protocol::PAGE_FAN, bridge_protocol::FAN_GET_TACH, &[]).await,
         }
     }
 }

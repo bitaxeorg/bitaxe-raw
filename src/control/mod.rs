@@ -27,7 +27,7 @@ const FAN_COMMAND: u8 = 9;
 
 #[derive(defmt::Format)]
 struct Command {
-    id: i8,
+    id: u8,
     bus: u8,
     inner: CommandInner,
 }
@@ -43,7 +43,7 @@ enum CommandInner {
 
 impl Command {
     fn from_bytes(buf: &[u8]) -> Result<Self, CommandError> {
-        let id = buf[0] as i8;
+        let id = buf[0];
         match buf[2] {
             I2C_COMMAND => Ok(Self {
                 id,
@@ -72,13 +72,27 @@ impl Command {
 
 #[derive(defmt::Format)]
 pub enum CommandError {
-    Timeout,               // 0x10
-    Invalid,               // 0x11
-    BufferOverflow,        // 0x12
+    Timeout, // 0x10
+    Invalid, // 0x11
+    Denied,  // 0x12
+    Fault,   // 0x13
+    BufferOverflow,
     Message(&'static str), // 0xff
 }
 
 impl CommandError {
+    fn from_protocol(error: crate::bridge_protocol::ProtocolError) -> Self {
+        use crate::bridge_protocol::ProtocolError;
+
+        match error {
+            ProtocolError::Timeout => Self::Timeout,
+            ProtocolError::InvalidCommand | ProtocolError::InvalidFrame | ProtocolError::InvalidResponse => Self::Invalid,
+            ProtocolError::Denied => Self::Denied,
+            ProtocolError::Fault => Self::Fault,
+            ProtocolError::BufferTooSmall => Self::BufferOverflow,
+        }
+    }
+
     fn to_bytes(&self) -> Vec<u8, 260> {
         let mut buf = Vec::<u8, 260>::new();
         buf.extend_from_slice(&[0x00, 0x00, 0xff]).unwrap();
@@ -90,8 +104,14 @@ impl CommandError {
             CommandError::Invalid => {
                 buf.push(0x11).unwrap();
             }
-            CommandError::BufferOverflow => {
+            CommandError::Denied => {
                 buf.push(0x12).unwrap();
+            }
+            CommandError::Fault => {
+                buf.push(0x13).unwrap();
+            }
+            CommandError::BufferOverflow => {
+                buf.extend_from_slice(&[0xff, b'B', b'u', b'f']).unwrap();
             }
             CommandError::Message(msg) => {
                 buf.push(0xff).unwrap();
@@ -134,14 +154,14 @@ impl Controller {
             let buf = match res {
                 Ok(res) => {
                     let mut buf = Vec::<u8, 260>::new();
-                    buf.extend_from_slice(&(res.len() as u16).to_le_bytes()).unwrap();
-                    buf.push(cmd.id as u8).unwrap();
+                    buf.extend_from_slice(&((res.len() + 3) as u16).to_le_bytes()).unwrap();
+                    buf.push(cmd.id).unwrap();
                     buf.extend_from_slice(&res).unwrap();
                     buf
                 }
                 Err(err) => {
                     let mut buf = err.to_bytes();
-                    buf[2] = cmd.id as u8;
+                    buf[2] = cmd.id;
                     buf
                 }
             };
@@ -204,7 +224,15 @@ async fn pipe_usb_read(rx: &mut Receiver<'static, super::UsbDriver>) -> Result<(
 
                             match Command::from_bytes(&buf[2..to_read]) {
                                 Ok(cmd) => COMMAND_CHANNEL.send(cmd).await,
-                                Err(err) => COMMAND_CHANNEL.send(Command { id: -1, bus: 0, inner: CommandInner::Error(err) }).await,
+                                Err(err) => {
+                                    COMMAND_CHANNEL
+                                        .send(Command {
+                                            id: 0xff,
+                                            bus: 0,
+                                            inner: CommandInner::Error(err),
+                                        })
+                                        .await
+                                }
                             }
 
                             let mut new_buf = [0; 4098];

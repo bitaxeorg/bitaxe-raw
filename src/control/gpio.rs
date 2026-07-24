@@ -1,4 +1,5 @@
 use super::CommandError;
+use crate::bridge_protocol;
 use esp_hal::gpio::{Input, Level, Output};
 use heapless::Vec;
 
@@ -45,13 +46,13 @@ impl super::ControllerCommand for Command {
     async fn handle(&self, controller: &mut super::Controller) -> Result<Vec<u8, 256>, CommandError> {
         match self {
             // Preserve the original bitaxe-raw-bonanza RST_N command ID and semantics.
-            Command::GetAsicResetn => controller.bridge.transact(0, 0, 0x06, 0x02, &[]).await,
-            Command::SetAsicResetn { level } => controller.bridge.transact(0, 0, 0x06, 0x02, &[*level as u8]).await,
-            Command::Get5vEn => controller.bridge.transact(0, 0, 0x06, 0x01, &[]).await,
-            Command::Set5vEn { level } => controller.bridge.transact(0, 0, 0x06, 0x01, &[*level as u8]).await,
-            Command::GetAsicRst => controller.bridge.transact(0, 0, 0x06, 0x02, &[]).await,
-            Command::SetAsicRst { level } => controller.bridge.transact(0, 0, 0x06, 0x02, &[*level as u8]).await,
-            Command::GetAsicTrip => controller.bridge.transact(0, 0, 0x06, 0x03, &[]).await,
+            Command::GetAsicResetn => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[]).await,
+            Command::SetAsicResetn { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[*level as u8]).await,
+            Command::Get5vEn => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_5V_ENABLE, &[]).await,
+            Command::Set5vEn { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_5V_ENABLE, &[*level as u8]).await,
+            Command::GetAsicRst => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[]).await,
+            Command::SetAsicRst { level } => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_RESET, &[*level as u8]).await,
+            Command::GetAsicTrip => controller.bridge.transact(bridge_protocol::PAGE_GPIO, bridge_protocol::GPIO_ASIC_TRIP, &[]).await,
             Command::GetVrEn => Ok(Vec::from_slice(&[controller.gpio.vr_en.is_set_high() as u8]).unwrap()),
             Command::SetVrEn { level } => {
                 controller.gpio.vr_en.set_level(Level::from(*level));
