@@ -193,6 +193,14 @@ pub fn decode_info(payload: &[u8]) -> Result<BridgeInfo<'_>, ProtocolError> {
     })
 }
 
+pub fn decode_gpio_level(payload: &[u8]) -> Result<bool, ProtocolError> {
+    match payload {
+        [0] => Ok(false),
+        [1] => Ok(true),
+        _ => Err(ProtocolError::InvalidResponse),
+    }
+}
+
 pub fn decode_safety_status(payload: &[u8]) -> Result<SafetyStatus, ProtocolError> {
     if payload.len() != SAFETY_STATUS_LENGTH
         || payload[0] != SAFETY_STATUS_SCHEMA_VERSION
@@ -296,6 +304,14 @@ mod tests {
 
         let invalid = [1, 1, 0, 1, b'\n'];
         assert_eq!(decode_info(&invalid), Err(ProtocolError::InvalidResponse));
+    }
+
+    #[test]
+    fn gpio_levels_are_single_canonical_boolean_bytes() {
+        assert_eq!(decode_gpio_level(&[0]), Ok(false));
+        assert_eq!(decode_gpio_level(&[1]), Ok(true));
+        assert_eq!(decode_gpio_level(&[2]), Err(ProtocolError::InvalidResponse));
+        assert_eq!(decode_gpio_level(&[0, 1]), Err(ProtocolError::InvalidResponse));
     }
 
     #[test]

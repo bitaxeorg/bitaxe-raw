@@ -188,6 +188,28 @@ impl BridgeManager {
                 self.fail_safe().await;
                 return Err(error);
             }
+
+            // Legacy clients may repeat an enable after reset has already been
+            // released. The strict Bridge rejects that sequence even when 5 V
+            // is already enabled, so treat a matching level as an idempotent
+            // success without retransmitting the unsafe write.
+            let current = match self.control.transact(bridge_protocol::PAGE_GPIO, command, &[]).await {
+                Ok(current) => current,
+                Err(error) => {
+                    self.fail_safe().await;
+                    return Err(error);
+                }
+            };
+            let current_level = match bridge_protocol::decode_gpio_level(&current) {
+                Ok(current_level) => current_level,
+                Err(error) => {
+                    self.fail_safe().await;
+                    return Err(CommandError::from_protocol(error));
+                }
+            };
+            if Some(current_level) == level {
+                return Ok(current);
+            }
         }
 
         let payload = level.map(|level| [level as u8]);
