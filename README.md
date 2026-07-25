@@ -54,9 +54,9 @@ When connected, this firmware creates two serial ports:
 ### Data Serial
 - Second serial port
 - All data is passed through in both directions.
-- The USB CDC baudrate is mirrored onto ESP32 `UART1`.
+- The USB CDC baudrate setting is ignored; host tools do not need to request a particular baudrate.
 - On bitaxeBonanza, this UART connects to the RP2040 bridge data UART on ESP32 `TX GPIO17` and `RX GPIO18`.
-- The RP2040 bridge expects this link to run at `5000000` baud.
+- The physical ESP32-to-RP2040 link is fixed at `2000000` baud, as required by current `bonanza-bridge-fw`.
 
 
 ### Control Serial
@@ -133,6 +133,18 @@ Example
 - Read `asic_trip`: `06 00 00 00 06 03`
 
 On bitaxeBonanza, these GPIO commands are forwarded to the RP2040 bridge. The `RST_N` compatibility alias is translated to the RP2040 `asic_rst` command so existing host tools can keep using command `0x00`.
+
+`bitaxe-raw-bonanza` transparently owns the bridge safety lease. The first request that can make the board unsafe checks bridge compatibility, clears a recoverable latched fault while outputs are safe, arms the lease, and then performs the original command. An internal task renews the lease every 250 ms. Existing clients do not send arm or heartbeat commands. Closing the control serial port asserts ASIC reset, disables 5 V, forces the fan to 100%, and disarms the lease.
+
+**Bridge diagnostics**
+
+Read-only bridge system commands are available on page `0x00`:
+
+- firmware and protocol info: `0x01`
+- receive overflow counters: `0x02`
+- safety status: `0x10`
+
+Lease mutation commands are deliberately internal to the firmware.
 
 **ADC**
 

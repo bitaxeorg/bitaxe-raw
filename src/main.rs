@@ -9,9 +9,16 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 use embassy_executor::Spawner;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
-use esp_hal::{analog::adc, clock::CpuClock, i2c, timer::systimer::SystemTimer};
+use esp_hal::{
+    analog::adc,
+    clock::CpuClock,
+    gpio::{Input, InputConfig, Level, Output, OutputConfig},
+    i2c,
+    timer::systimer::SystemTimer,
+};
 use static_cell::StaticCell;
 
+mod bridge_protocol;
 mod control;
 mod uart;
 
@@ -24,7 +31,8 @@ pub type UsbDevice = embassy_usb::UsbDevice<'static, UsbDriver>;
 const VERSION: u16 = 0x0001;
 
 static MANUFACTURER: &str = "OSMU";
-static PRODUCT: &str = "Bitaxe";
+static PRODUCT: &str = "BitaxeBonanza";
+const BRIDGE_DATA_BAUDRATE: u32 = 2_000_000;
 
 /// Return a unique serial number for this device by hashing its MAC address
 fn serial_number() -> &'static str {
@@ -90,7 +98,7 @@ async fn main(spawner: Spawner) {
     };
 
     let asic_uart = {
-        let config = esp_hal::uart::Config::default().with_baudrate(115200).with_rx(esp_hal::uart::RxConfig::default().with_fifo_full_threshold(64));
+        let config = esp_hal::uart::Config::default().with_baudrate(BRIDGE_DATA_BAUDRATE).with_rx(esp_hal::uart::RxConfig::default().with_fifo_full_threshold(64));
         esp_hal::uart::Uart::new(p.UART1, config).unwrap().with_rx(p.GPIO18).with_tx(p.GPIO17).into_async()
     };
 
@@ -111,8 +119,14 @@ async fn main(spawner: Spawner) {
     let adc = adc::Adc::new(p.ADC1, Default::default());
     let adc_pins = control::adc::Pins { adc, vdd: vdd };
 
+    let gpio_pins = control::gpio::Pins {
+        vr_en: Output::new(p.GPIO10, Level::Low, OutputConfig::default()),
+        vr_pgood: Input::new(p.GPIO11, InputConfig::default()),
+    };
+
     unwrap!(spawner.spawn(usb_task(builder.build())));
-    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, bridge_control_uart, adc_pins)));
+    unwrap!(spawner.spawn(control::bridge::manager_task(bridge_control_uart)));
+    unwrap!(spawner.spawn(control::usb_task(control_class, i2c, adc_pins, gpio_pins)));
     unwrap!(spawner.spawn(uart::usb_task(asic_uart_class, asic_uart)));
 }
 
